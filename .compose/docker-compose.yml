@@ -1,0 +1,14 @@
+services:
+    broker:
+        # point to the directory of the Dockerfile
+        build:
+          context: ./../broker
+          dockerfile: ./../broker/broker.dockerfile
+        restart: always
+        ports:
+            # map port 8080 on the host to port 80 on the container
+            - "8000:80"
+        deploy:
+            # only ever allowed 1 replica
+            mode: replicated
+            replicas: 1
