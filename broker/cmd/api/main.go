@@ -3,18 +3,19 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 )
 
 const PORT = "80"
 
-type Application struct {
+type application struct {
 }
 
 func main() {
-	app := Application{}
+	app := application{}
 
-	log.Printf("Starting broker service on port %s\n", PORT)
+	slog.Info("Starting broker service", "port", PORT)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", PORT),

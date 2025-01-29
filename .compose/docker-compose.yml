@@ -1,14 +1,74 @@
 services:
+    postgres:
+        # pull the postgres image from Docker Hub
+        image: postgres
+        # map port 5432 on the host to port 5432 on the container
+        ports:
+            - "5433:5432"
+        deploy:
+            mode: replicated
+            replicas: 1
+        # set the password for the postgres user
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: users
+        # set the volume for the database for persistence
+        volumes:
+            - ./db-data/postgres/:/var/lib/postgresql/data/
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d users"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        networks:
+            - micro-network
+
     broker:
         # point to the directory of the Dockerfile
         build:
-          context: ./../broker
-          dockerfile: ./../broker/broker.dockerfile
+            context: ./../broker
+            dockerfile: ./../broker/broker.dockerfile
         restart: always
         ports:
-            # map port 8080 on the host to port 80 on the container
+            # map port 8000 on the host to port 80 on the container
             - "8000:80"
         deploy:
             # only ever allowed 1 replica
             mode: replicated
             replicas: 1
+        depends_on:
+            postgres:
+                condition: service_healthy
+        networks:
+          - micro-network
+
+    authentication:
+        # point to the directory of the Dockerfile
+        build:
+            context: ./../authentication
+            dockerfile: ./../authentication/authentication.dockerfile
+        restart: always
+        ports:
+            # map port 8001 on the host to port 80 on the container
+            - "8001:80"
+        deploy:
+            # only ever allowed 1 replica
+            mode: replicated
+            replicas: 1
+        environment:
+            POSTGRES_HOST: postgres
+            POSTGRES_PORT: 5432
+            POSTGRES_USER: postgres
+            DB_DSN: "postgres://postgres:password@postgres:5432/users?sslmode=disable"
+        # authentication service depends on the postgres service
+        depends_on:
+            postgres:
+                condition: service_healthy
+        networks:
+          - micro-network
+
+# define the network as a subnet
+networks:
+    micro-network:
+        driver: bridge
