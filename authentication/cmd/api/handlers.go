@@ -1,18 +1,18 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/ziliscite/go-micro-authentication/internal/data"
+	"github.com/ziliscite/go-micro-authentication/internal/repository"
+	"log/slog"
 	"net/http"
 )
-
-type response struct {
-	Error   bool   `json:"error"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-}
 
 func (app *application) register(w http.ResponseWriter, r *http.Request) {
 	var request struct {
@@ -40,7 +40,10 @@ func (app *application) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.repo.Insert(&user)
+	ctx, cancel := context.WithTimeout(r.Context(), repository.DBTimeout)
+	defer cancel()
+
+	err = app.repo.Insert(ctx, &user)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		switch {
@@ -73,7 +76,10 @@ func (app *application) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := app.repo.GetByEmail(request.Email)
+	ctx, cancel := context.WithTimeout(r.Context(), repository.DBTimeout)
+	defer cancel()
+
+	user, err := app.repo.GetByEmail(ctx, request.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -90,6 +96,14 @@ func (app *application) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// I assume this will be changed to some pub sub and call grpc stuff
+	err = app.log("Authenticated", fmt.Sprintf("%s authenticated successfully", user.Email))
+	if err != nil {
+		// don't do anything. why would we want to make it error here?
+		// user is authenticated, a missing log aint doin shit
+		slog.Error("Failed to log authentication", "error", err)
+	}
+
 	if err = app.write(w, http.StatusAccepted, response{
 		Error:   false,
 		Message: "Authenticated",
@@ -97,4 +111,35 @@ func (app *application) authenticate(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		app.serverError(w, err)
 	}
+}
+
+func (app *application) log(title, content string) error {
+	var entry struct {
+		Title   string `json:"title"`
+		Content string `json:"content"`
+	}
+
+	entry.Title = title
+	entry.Content = content
+
+	payload, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "http://logger/v1/logs", bytes.NewBuffer(payload))
+	// url is composed of [hostname]:[port]/[service name in the docker image]/[method]
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return nil
 }

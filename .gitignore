@@ -1,3 +1,5 @@
 authentication/.env
 broker/.env
 frontend/.env
+logger/.env
+

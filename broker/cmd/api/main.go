@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
+	"os"
 )
 
-const PORT = "80"
+const ApiPort = "80"
 
 type application struct {
 }
@@ -15,14 +15,14 @@ type application struct {
 func main() {
 	app := application{}
 
-	slog.Info("Starting broker service", "port", PORT)
-
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%s", PORT),
+		Addr:    fmt.Sprintf(":%s", ApiPort),
 		Handler: app.routes(),
 	}
 
+	slog.Info("Starting broker service", "port", ApiPort)
 	if err := server.ListenAndServe(); err != nil {
-		log.Panic(err)
+		slog.Error("Failed to start server", "error", err)
+		os.Exit(1)
 	}
 }

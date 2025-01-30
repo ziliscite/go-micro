@@ -41,15 +41,14 @@ func main() {
 		repo: repo,
 	}
 
-	slog.Info("Starting authentication service", "port", cfg.port)
-
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", cfg.port),
 		Handler: app.routes(),
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		slog.Error(err.Error())
+	slog.Info("Starting authentication service", "port", cfg.port)
+	if err = server.ListenAndServe(); err != nil {
+		slog.Error("Failed to start server", "error", err)
 		os.Exit(1)
 	}
 }

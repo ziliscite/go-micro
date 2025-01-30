@@ -2,7 +2,7 @@ services:
     postgres:
         # pull the postgres image from Docker Hub
         image: postgres
-        # map port 5432 on the host to port 5432 on the container
+        # map port 5433 on the host to port 5432 on the container
         ports:
             - "5433:5432"
         deploy:
@@ -19,6 +19,38 @@ services:
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U postgres -d users"]
             interval: 5s
+            timeout: 5s
+            retries: 5
+        networks:
+            - micro-network
+
+    mongo:
+        # pull the mongo image from Docker Hub
+        image: mongo
+        # map port 27018 on the host to port 27017 on the container
+        ports:
+            - "27018:27017"
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: admin
+            MONGO_INITDB_ROOT_PASSWORD: password
+            MONGO_INITDB_DATABASE: logs
+        deploy:
+            mode: replicated
+            replicas: 1
+        # set the volume for the database for persistence
+        volumes:
+            - ./db-data/mongo/:/data/db/
+        healthcheck:
+            test: [
+                "CMD",
+                "mongosh",
+                "--eval",
+                "db.adminCommand('ping')",
+                "-u", "admin",
+                "-p", "password",
+                "--authenticationDatabase", "admin"
+            ]
+            interval: 10s
             timeout: 5s
             retries: 5
         networks:
@@ -67,6 +99,28 @@ services:
                 condition: service_healthy
         networks:
           - micro-network
+
+    logger:
+        build:
+            context: ./../logger
+            dockerfile: ./../logger/logger.dockerfile
+        restart: always
+        # don't map ports to the host
+        ports:
+            - "8002:80"
+        deploy:
+            mode: replicated
+            replicas: 1
+        environment:
+            MONGO_URL: mongodb://mongo:27017
+            MONGO_USERNAME: admin
+            MONGO_PASSWORD: password
+            MONGO_DATABASE: logger
+        depends_on:
+            mongo:
+                condition: service_healthy
+        networks:
+            - micro-network
 
 # define the network as a subnet
 networks:

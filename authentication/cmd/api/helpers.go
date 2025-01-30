@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+type response struct {
+	Error   bool   `json:"error"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+}
+
 var (
 	ErrBadlyFormattedJSON = errors.New("body contains badly-formed JSON")
 	ErrInvalidTypeJSON    = errors.New("body contains incorrect JSON type")

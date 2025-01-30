@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-const dbTimeout = time.Second * 3
+const DBTimeout = time.Second * 3
 
-// New is the function used to create an instance of the data package. It returns the type
-// Model, which embeds all the types we want to be available to our application.
+// New is the function used to create an instance of the repository package. It returns the type
+// Repository, which embeds all the types we want to be available to our application.
 func New(dbPool *sql.DB) Repository {
 	return Repository{
 		db: dbPool,
@@ -26,10 +26,7 @@ type Repository struct {
 }
 
 // GetAll returns a slice of all users, sorted by last name
-func (r Repository) GetAll() ([]*data.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) GetAll(ctx context.Context) ([]*data.User, error) {
 	query := `
 	SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at
 	FROM users ORDER BY last_name
@@ -71,10 +68,7 @@ func (r Repository) GetAll() ([]*data.User, error) {
 }
 
 // GetByEmail returns one user by email
-func (r Repository) GetByEmail(email string) (*data.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) GetByEmail(ctx context.Context, email string) (*data.User, error) {
 	query := `
 	SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at 
 	FROM users WHERE email = $1
@@ -101,10 +95,7 @@ func (r Repository) GetByEmail(email string) (*data.User, error) {
 }
 
 // GetOne returns one user by id
-func (r Repository) GetOne(id int) (*data.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) GetOne(ctx context.Context, id int) (*data.User, error) {
 	query := `
 		SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at 
 		FROM users WHERE id = $1
@@ -133,10 +124,7 @@ func (r Repository) GetOne(id int) (*data.User, error) {
 
 // Update updates one user in the database, using the information
 // stored in the receiver u
-func (r Repository) Update(user *data.User) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) Update(ctx context.Context, user *data.User) error {
 	stmt := `UPDATE users SET 
 		email = $1, first_name = $2, last_name = $3,
 		user_active = $4, updated_at = $5
@@ -158,10 +146,7 @@ func (r Repository) Update(user *data.User) error {
 }
 
 // Delete deletes one user from the database, by User.ID
-func (r Repository) Delete(user *data.User) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) Delete(ctx context.Context, user *data.User) error {
 	stmt := `DELETE FROM users WHERE id = $1`
 
 	_, err := r.db.ExecContext(ctx, stmt, user.ID)
@@ -173,10 +158,7 @@ func (r Repository) Delete(user *data.User) error {
 }
 
 // DeleteByID deletes one user from the database, by ID
-func (r Repository) DeleteByID(id int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) DeleteByID(ctx context.Context, id int) error {
 	stmt := `DELETE FROM users where id = $1`
 
 	_, err := r.db.ExecContext(ctx, stmt, id)
@@ -188,10 +170,7 @@ func (r Repository) DeleteByID(id int) error {
 }
 
 // Insert inserts a new user into the database, and returns the ID of the newly inserted row
-func (r Repository) Insert(user *data.User) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) Insert(ctx context.Context, user *data.User) error {
 	stmt := `
 		INSERT INTO users (email, first_name, last_name, password)
 		VALUES ($1, $2, $3, $4) RETURNING id
@@ -213,10 +192,7 @@ func (r Repository) Insert(user *data.User) error {
 }
 
 // ResetPassword is the method we will use to change a user's password.
-func (r Repository) ResetPassword(user *data.User) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
+func (r Repository) ResetPassword(ctx context.Context, user *data.User) error {
 	stmt := `UPDATE users SET password = $1 WHERE id = $2 AND updated_at = $3`
 	_, err := r.db.ExecContext(ctx, stmt, user.Hashed(), user.ID, user.UpdatedAt)
 	if err != nil {
