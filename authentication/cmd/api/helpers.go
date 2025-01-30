@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -47,6 +48,23 @@ func (app *application) error(w http.ResponseWriter, code int, e error) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+func (app *application) serverError(w http.ResponseWriter, err error) {
+	slog.Error("server error", "error", err)
+
+	message := "the server encountered a problem and could not process your request"
+	app.error(w, http.StatusInternalServerError, errors.New(message))
+}
+
+func (app *application) notFound(w http.ResponseWriter) {
+	message := "the requested resource could not be found"
+	app.error(w, http.StatusNotFound, errors.New(message))
+}
+
+func (app *application) invalidCredentials(w http.ResponseWriter) {
+	message := "invalid authentication credentials"
+	app.error(w, http.StatusUnauthorized, errors.New(message))
 }
 
 func (app *application) readBody(w http.ResponseWriter, r *http.Request, dst any) error {

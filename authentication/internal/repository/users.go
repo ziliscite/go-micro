@@ -4,8 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/ziliscite/go-micro-authentication/internal/data"
-	"golang.org/x/crypto/bcrypt"
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -45,21 +44,25 @@ func (r Repository) GetAll() ([]*data.User, error) {
 	var users []*data.User
 
 	for rows.Next() {
+		var hashed []byte
+
 		var user data.User
 		err := rows.Scan(
 			&user.ID,
 			&user.Email,
 			&user.FirstName,
 			&user.LastName,
-			&user.Password,
+			&hashed,
 			&user.Active,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
 		if err != nil {
-			log.Println("Error scanning", err)
+			slog.Error("Unable to scan row", "error", err)
 			return nil, err
 		}
+
+		user.SetHashed(hashed)
 
 		users = append(users, &user)
 	}
@@ -77,23 +80,22 @@ func (r Repository) GetByEmail(email string) (*data.User, error) {
 	FROM users WHERE email = $1
 	`
 
+	var hashed []byte
 	var user data.User
-	row := r.db.QueryRowContext(ctx, query, email)
-
-	err := row.Scan(
+	if err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.FirstName,
 		&user.LastName,
-		&user.Password,
+		&hashed,
 		&user.Active,
 		&user.CreatedAt,
 		&user.UpdatedAt,
-	)
-
-	if err != nil {
+	); err != nil {
 		return nil, err
 	}
+
+	user.SetHashed(hashed)
 
 	return &user, nil
 }
@@ -108,23 +110,23 @@ func (r Repository) GetOne(id int) (*data.User, error) {
 		FROM users WHERE id = $1
 	`
 
-	var user data.User
-	row := r.db.QueryRowContext(ctx, query, id)
+	var hashed []byte
 
-	err := row.Scan(
+	var user data.User
+	if err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Email,
 		&user.FirstName,
 		&user.LastName,
-		&user.Password,
+		&hashed,
 		&user.Active,
 		&user.CreatedAt,
 		&user.UpdatedAt,
-	)
-
-	if err != nil {
+	); err != nil {
 		return nil, err
 	}
+
+	user.SetHashed(hashed)
 
 	return &user, nil
 }
@@ -186,50 +188,37 @@ func (r Repository) DeleteByID(id int) error {
 }
 
 // Insert inserts a new user into the database, and returns the ID of the newly inserted row
-func (r Repository) Insert(user *data.User) (int, error) {
+func (r Repository) Insert(user *data.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 12)
-	if err != nil {
-		return 0, err
-	}
-
 	stmt := `
-		INSERT INTO users (email, first_name, last_name, password, user_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+		INSERT INTO users (email, first_name, last_name, password)
+		VALUES ($1, $2, $3, $4) RETURNING id
 	`
 
 	var newID int
-	err = r.db.QueryRowContext(ctx, stmt,
+	if err := r.db.QueryRowContext(ctx, stmt,
 		user.Email,
 		user.FirstName,
 		user.LastName,
-		hashedPassword,
-		user.Active,
-		time.Now(),
-		time.Now(),
-	).Scan(&newID)
-
-	if err != nil {
-		return 0, err
-	}
-
-	return newID, nil
-}
-
-// ResetPassword is the method we will use to change a user's password.
-func (r Repository) ResetPassword(user *data.User, password string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
-	defer cancel()
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	if err != nil {
+		user.Hashed(),
+	).Scan(&newID); err != nil {
 		return err
 	}
 
+	user.ID = newID
+
+	return nil
+}
+
+// ResetPassword is the method we will use to change a user's password.
+func (r Repository) ResetPassword(user *data.User) error {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
 	stmt := `UPDATE users SET password = $1 WHERE id = $2 AND updated_at = $3`
-	_, err = r.db.ExecContext(ctx, stmt, hashedPassword, user.ID, user.UpdatedAt)
+	_, err := r.db.ExecContext(ctx, stmt, user.Hashed(), user.ID, user.UpdatedAt)
 	if err != nil {
 		return err
 	}

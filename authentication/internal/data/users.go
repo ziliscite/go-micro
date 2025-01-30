@@ -13,17 +13,30 @@ type User struct {
 	Email     string    `json:"email"`
 	FirstName string    `json:"first_name,omitempty"`
 	LastName  string    `json:"last_name,omitempty"`
-	Password  string    `json:"-"`
-	Active    int       `json:"active"`
+	Password  password  `json:"-"`
+	Active    bool      `json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (u *User) Hashed() []byte {
+	return u.Password.hash
+}
+
+func (u *User) SetHashed(hashedPassword []byte) {
+	u.Password.hash = hashedPassword
+}
+
+type password struct {
+	plaintext string
+	hash      []byte
 }
 
 // PasswordMatches uses Go's bcrypt package to compare a user-supplied password
 // with the hash we have stored for a given user in the database. If the password
 // and hash match, we return true; otherwise, we return false.
-func (u *User) PasswordMatches(plainText string) (bool, error) {
-	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(plainText))
+func (p *password) PasswordMatches(plainText string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword(p.hash, []byte(plainText))
 	if err != nil {
 		switch {
 		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
@@ -39,13 +52,14 @@ func (u *User) PasswordMatches(plainText string) (bool, error) {
 
 // Set method calculates the bcrypt hash of a plaintext password, and stores both
 // the hash and the plaintext versions in the struct.
-func (u *User) Set(plaintextPassword string) error {
+func (p *password) Set(plaintextPassword string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(plaintextPassword), 12)
 	if err != nil {
 		return err
 	}
 
-	u.Password = string(hash)
+	p.plaintext = plaintextPassword
+	p.hash = hash
 
 	return nil
 }

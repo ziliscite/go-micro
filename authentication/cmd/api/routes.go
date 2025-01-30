@@ -26,5 +26,10 @@ func (app *application) routes() http.Handler {
 		middleware.Heartbeat("/ping"),
 	)
 
+	mux.Route("/v1", func(v1 chi.Router) {
+		v1.Post("/register", app.register)
+		v1.Post("/authenticate", app.authenticate)
+	})
+
 	return mux
 }
