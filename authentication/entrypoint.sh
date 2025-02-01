@@ -3,7 +3,7 @@ set -e
 
 # Wait for PostgreSQL
 until /usr/bin/pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER; do
-  echo "Waiting for PostgreSQL..."
+  echo "Waiting for PostgresSQL..."
   sleep 2
 done
 

@@ -27,5 +27,5 @@ func (app *application) routes() http.Handler {
 	mux.Post("/", app.broker)
 	mux.Post("/handle", app.gateway)
 
-	return mux
+	return middleware.Recoverer(mux)
 }

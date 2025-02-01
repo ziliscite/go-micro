@@ -56,6 +56,26 @@ services:
         networks:
             - micro-network
 
+    # Mail hog to test mailer
+    mailhog:
+        image: "mailhog/mailhog:latest"
+        ports:
+            - "1025:1025"
+            - "8025:8025"
+        volumes:
+            - ./mail-data/mailhog:/home/mailhog/maildir
+        environment:
+            - MH_STORAGE=maildir
+            - MH_MAILDIR_PATH=maildir
+        healthcheck:
+            test: ["CMD", "nc", "-z", "localhost", "8025"]
+            interval: 30s
+            retries: 3
+            timeout: 10s
+            start_period: 10s
+        networks:
+            - micro-network
+
     broker:
         # point to the directory of the Dockerfile
         build:
@@ -69,9 +89,6 @@ services:
             # only ever allowed 1 replica
             mode: replicated
             replicas: 1
-        depends_on:
-            postgres:
-                condition: service_healthy
         networks:
           - micro-network
 
@@ -82,10 +99,8 @@ services:
             dockerfile: ./../authentication/authentication.dockerfile
         restart: always
         ports:
-            # map port 8001 on the host to port 80 on the container
             - "8001:80"
         deploy:
-            # only ever allowed 1 replica
             mode: replicated
             replicas: 1
         environment:
@@ -105,7 +120,7 @@ services:
             context: ./../logger
             dockerfile: ./../logger/logger.dockerfile
         restart: always
-        # don't map ports to the host
+        # we usually don't want to map ports to the host, but
         ports:
             - "8002:80"
         deploy:
@@ -118,6 +133,31 @@ services:
             MONGO_DATABASE: logger
         depends_on:
             mongo:
+                condition: service_healthy
+        networks:
+            - micro-network
+
+    mailer:
+        build:
+            context: ./../mailer
+            dockerfile: ./../mailer/mailer.dockerfile
+        restart: always
+        ports:
+            - "8003:80"
+        deploy:
+            mode: replicated
+            replicas: 1
+        environment:
+            MAIL_PORT: 1025
+            MAIL_USERNAME: ""
+            MAIL_PASSWORD: ""
+            MAIL_HOST: mailhog
+            MAIL_ENCRYPTION: none
+            MAIL_FROM_ADDRESS: no-reply@github.ziliscite.com
+            MAIL_FROM_NAME: ziliscite
+            MAIL_DOMAIN: localhost
+        depends_on:
+            mailhog:
                 condition: service_healthy
         networks:
             - micro-network

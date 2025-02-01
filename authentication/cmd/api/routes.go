@@ -31,5 +31,5 @@ func (app *application) routes() http.Handler {
 		v1.Post("/authenticate", app.authenticate)
 	})
 
-	return mux
+	return middleware.Recoverer(mux)
 }

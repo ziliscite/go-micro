@@ -5,7 +5,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install client
-RUN apk add --no-cache curl postgresql-client  # <-- Add postgresql-client here
+RUN apk add --no-cache curl postgresql-client
 
 # Install migration tool
 RUN apk add --no-cache curl \

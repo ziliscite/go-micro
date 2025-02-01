@@ -7,12 +7,6 @@ import (
 	"net/http"
 )
 
-type response struct {
-	Error   bool   `json:"error"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-}
-
 func (app *application) broker(w http.ResponseWriter, r *http.Request) {
 	payload := response{
 		Error:   false,

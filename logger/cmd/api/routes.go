@@ -31,7 +31,7 @@ func (app *application) routes() http.Handler {
 		v1.Get("/logs", app.listLogs)
 	})
 
-	return mux
+	return middleware.Recoverer(mux)
 }
 
 func (app *application) serve() error {
@@ -41,9 +41,5 @@ func (app *application) serve() error {
 	}
 
 	slog.Info("Starting logger service", "port", ApiPort)
-	if err := server.ListenAndServe(); err != nil {
-		return err
-	}
-
-	return nil
+	return server.ListenAndServe()
 }
