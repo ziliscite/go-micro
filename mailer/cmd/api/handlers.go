@@ -20,6 +20,17 @@ func (app *application) send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	email, err := app.mailer.BuildMessage(Message{
+		Data:    request.Message,
+		From:    request.From,
+		To:      request.To,
+		Subject: request.Subject,
+	})
+	if err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
+
 	go func() {
 		// In case of panic / unhandled error
 		defer func() {
@@ -29,12 +40,7 @@ func (app *application) send(w http.ResponseWriter, r *http.Request) {
 		}()
 
 		// Send email in a goroutine
-		if err = app.mailer.SendMessage(Message{
-			Data:    request.Message,
-			From:    request.From,
-			To:      request.To,
-			Subject: request.Subject,
-		}); err != nil {
+		if err = app.mailer.SendMessage(email); err != nil {
 			slog.Error(err.Error())
 		}
 	}()

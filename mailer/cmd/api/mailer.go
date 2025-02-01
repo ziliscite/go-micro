@@ -67,33 +67,7 @@ type Message struct {
 	Subject  string
 }
 
-func (m *Mailer) SendMessage(msg Message) error {
-	// Sender Address
-	if msg.From == "" {
-		msg.From = m.FromAddress
-	}
-
-	// Sender Name
-	if msg.FromName == "" {
-		msg.FromName = m.FromName
-	}
-
-	data := map[string]any{
-		"content": msg.Data,
-	}
-
-	msg.DataMap = data
-
-	plain, err := m.buildPlainTextMessage(msg)
-	if err != nil {
-		return err
-	}
-
-	formatted, err := m.buildHTMLMessage(msg)
-	if err != nil {
-		return err
-	}
-
+func (m *Mailer) SendMessage(email *mail.Email) error {
 	client, err := m.server.Connect()
 	if err != nil {
 		return err
@@ -105,17 +79,6 @@ func (m *Mailer) SendMessage(msg Message) error {
 			slog.Error(err.Error())
 		}
 	}()
-
-	email := mail.NewMSG()
-	email.SetFrom(msg.From).
-		AddTo(msg.To).
-		SetSubject(msg.Subject).
-		SetBody(mail.TextPlain, plain).
-		AddAlternative(mail.TextHTML, formatted)
-
-	for _, at := range msg.Attachments {
-		email.AddAttachment(at)
-	}
 
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -136,6 +99,47 @@ func (m *Mailer) SendMessage(msg Message) error {
 	}
 
 	return nil
+}
+
+func (m *Mailer) BuildMessage(msg Message) (*mail.Email, error) {
+	// Sender Address
+	if msg.From == "" {
+		msg.From = m.FromAddress
+	}
+
+	// Sender Name
+	if msg.FromName == "" {
+		msg.FromName = m.FromName
+	}
+
+	data := map[string]any{
+		"content": msg.Data,
+	}
+
+	msg.DataMap = data
+
+	plain, err := m.buildPlainTextMessage(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	formatted, err := m.buildHTMLMessage(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	email := mail.NewMSG()
+	email.SetFrom(msg.From).
+		AddTo(msg.To).
+		SetSubject(msg.Subject).
+		SetBody(mail.TextPlain, plain).
+		AddAlternative(mail.TextHTML, formatted)
+
+	for _, at := range msg.Attachments {
+		email.AddAttachment(at)
+	}
+
+	return email, nil
 }
 
 func (m *Mailer) buildHTMLMessage(msg Message) (string, error) {

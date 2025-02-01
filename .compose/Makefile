@@ -31,7 +31,7 @@ down:
 ## build_broker: builds the broker binary as a linux executable
 build_broker:
 	@echo Building broker binary...
-	chdir ..\broker && set GOOS=linux&& set GOARCH=amd64&& set CGO_ENABLED=0 && go build -o ${BROKER_BINARY} ./cmd/api
+	chdir ..\broker && set GOOS=linux&& set GOARCH=amd64&& set CGO_ENABLED=0 && go build -o ../../.compose/bin/${BROKER_BINARY} ./cmd/api
 	@echo Done!
 
 ## build_logger: builds the logger binary as a linux executable

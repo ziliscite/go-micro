@@ -24,6 +24,7 @@ type request struct {
 	Action string `json:"action"`
 	Auth   auth   `json:"auth,omitempty"`
 	Log    log    `json:"log,omitempty"`
+	Mail   mail   `json:"mail,omitempty"`
 }
 
 type auth struct {
@@ -34,6 +35,13 @@ type auth struct {
 type log struct {
 	Title   string `json:"title"`
 	Content string `json:"content"`
+}
+
+type mail struct {
+	From    string `json:"from,omitempty"`
+	To      string `json:"to,omitempty"`
+	Subject string `json:"subject,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 func (app *application) gateway(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +59,8 @@ func (app *application) gateway(w http.ResponseWriter, r *http.Request) {
 		app.authenticate(w, req.Auth)
 	case "log":
 		app.log(w, req.Log)
+	case "mail":
+		app.sendMail(w, req.Mail)
 	default:
 		app.error(w, http.StatusNotImplemented, errors.New("unknown action"))
 	}
@@ -148,7 +158,63 @@ func (app *application) log(w http.ResponseWriter, l log) {
 	case http.StatusNotFound:
 		message = "resource not found"
 	default:
-		message = "auth service could not process your request"
+		message = "log service could not process your request"
+	}
+
+	// Check the status code
+	if resp.StatusCode != http.StatusAccepted {
+		app.error(w, resp.StatusCode, errors.New(message))
+		return
+	}
+
+	// Decode the response
+	var jsonResp response
+	if err = json.NewDecoder(resp.Body).Decode(&jsonResp); err != nil {
+		app.error(w, http.StatusServiceUnavailable, err)
+		return
+	}
+
+	if jsonResp.Error {
+		app.error(w, http.StatusInternalServerError, errors.New(jsonResp.Message))
+		return
+	}
+
+	// Add the auth token to the response
+	if err = app.write(w, http.StatusOK, jsonResp); err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
+}
+
+func (app *application) sendMail(w http.ResponseWriter, m mail) {
+	// Create the payload
+	payload, err := json.Marshal(m)
+	if err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "http://mailer/v1/send", bytes.NewBuffer(payload))
+	if err != nil {
+		app.error(w, http.StatusServiceUnavailable, err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		app.error(w, http.StatusServiceUnavailable, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var message string
+	switch resp.StatusCode {
+	case http.StatusBadRequest:
+		message = "invalid email data"
+	default:
+		message = "mailer could not process your request"
 	}
 
 	// Check the status code

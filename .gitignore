@@ -3,3 +3,7 @@ broker/.env
 frontend/.env
 logger/.env
 
+.compose/db-data
+.compose/mail-data
+
+.idea
