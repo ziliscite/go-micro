@@ -3,7 +3,10 @@ FRONT_END_BINARY=web.exe
 BROKER_BINARY=broker
 AUTHENTICATION_BINARY=authentication
 LOGGER_BINARY=logger
-MAILER_BINARY=mailer ## -> this should match the name un the dockerfile
+MAILER_BINARY=mailer
+LISTENER_BINARY=listener
+
+## -> those binary should match the name un the dockerfile
 
 ## up: starts all containers in the background without forcing build
 .PHONY: up
@@ -14,7 +17,7 @@ up:
 
 ## up_build: stops docker-compose (if running), builds all projects and starts docker compose
 .PHONY: up_build
-up_build: build_broker build_auth build_logger build_mailer
+up_build: build_broker build_auth build_logger build_mailer build_listener
 	@echo Stopping docker images (if running...)
 	docker-compose down
 	@echo Building (when required) and starting docker images...
@@ -31,7 +34,7 @@ down:
 ## build_broker: builds the broker binary as a linux executable
 build_broker:
 	@echo Building broker binary...
-	chdir ..\broker && set GOOS=linux&& set GOARCH=amd64&& set CGO_ENABLED=0 && go build -o ../../.compose/bin/${BROKER_BINARY} ./cmd/api
+	chdir ..\broker && set GOOS=linux&& set GOARCH=amd64&& set CGO_ENABLED=0 && go build -o ${BROKER_BINARY} ./cmd/api
 	@echo Done!
 
 ## build_logger: builds the logger binary as a linux executable
@@ -50,6 +53,12 @@ build_auth:
 build_mailer:
 	@echo Building mailer binary...
 	chdir ..\mailer && set GOOS=linux&& set GOARCH=amd64&& set CGO_ENABLED=0 && go build -o ${MAILER_BINARY} ./cmd/api
+	@echo Done!
+
+## build_listener: builds the listener binary as a linux executable
+build_listener:
+	@echo Building listener binary...
+	chdir ..\listener && set GOOS=linux&& set GOARCH=amd64&& set CGO_ENABLED=0 && go build -o ${LISTENER_BINARY} .
 	@echo Done!
 
 ## build_front: builds the frontend binary

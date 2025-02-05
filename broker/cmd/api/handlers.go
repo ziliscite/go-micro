@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/ziliscite/go-micro-broker/event"
 	"net/http"
 )
 
@@ -58,7 +59,8 @@ func (app *application) gateway(w http.ResponseWriter, r *http.Request) {
 	case "authenticate":
 		app.authenticate(w, req.Auth)
 	case "log":
-		app.log(w, req.Log)
+		//app.log(w, req.Log)
+		app.pushLog(w, req.Log)
 	case "mail":
 		app.sendMail(w, req.Mail)
 	default:
@@ -179,7 +181,6 @@ func (app *application) log(w http.ResponseWriter, l log) {
 		return
 	}
 
-	// Add the auth token to the response
 	if err = app.write(w, http.StatusOK, jsonResp); err != nil {
 		app.error(w, http.StatusInternalServerError, err)
 		return
@@ -240,4 +241,41 @@ func (app *application) sendMail(w http.ResponseWriter, m mail) {
 		app.error(w, http.StatusInternalServerError, err)
 		return
 	}
+}
+
+func (app *application) pushLog(w http.ResponseWriter, l log) {
+	err := app.pushToQueue(l.Title, l.Content)
+	if err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err = app.write(w, http.StatusAccepted, response{
+		Error:   false,
+		Message: "Log pushed to queue",
+	}); err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
+}
+
+// same pattern to publish shit to queue
+func (app *application) pushToQueue(name, msg string) error {
+	pub, err := event.NewPublisher(app.rabbit)
+	if err != nil {
+		return err
+	}
+
+	p := log{
+		Title:   name,
+		Content: msg,
+	}
+
+	pj, err := json.Marshal(&p)
+	if err != nil {
+		return err
+	}
+
+	// might wanna break it into some log types
+	return pub.Push(string(pj), "log.INFO")
 }
