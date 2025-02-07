@@ -2,10 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"time"
+
 	"github.com/ziliscite/go-micro-broker/event"
+	logs "github.com/ziliscite/go-micro-broker/proto/genproto"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"net/http"
+	"net/rpc"
 )
 
 func (app *application) broker(w http.ResponseWriter, r *http.Request) {
@@ -59,8 +67,10 @@ func (app *application) gateway(w http.ResponseWriter, r *http.Request) {
 	case "authenticate":
 		app.authenticate(w, req.Auth)
 	case "log":
-		//app.log(w, req.Log)
-		app.pushLog(w, req.Log)
+		//app.log(w, req.Log) -- http
+		//app.pushLog(w, req.Log) -- message broker
+		app.logRPC(w, req.Log)
+
 	case "mail":
 		app.sendMail(w, req.Mail)
 	default:
@@ -278,4 +288,91 @@ func (app *application) pushToQueue(name, msg string) error {
 
 	// might wanna break it into some log types
 	return pub.Push(string(pj), "log.INFO")
+}
+
+func (app *application) logRPC(w http.ResponseWriter, l log) {
+	type rpcPayload struct {
+		Name string `json:"name"`
+		Data string `json:"data"`
+	}
+
+	// Get rpc client
+	client, err := rpc.Dial("tcp", "logger:5001") // same name in docker compose
+	if err != nil {
+		app.error(w, http.StatusServiceUnavailable, err)
+		return
+	}
+	defer client.Close()
+
+	// Create type that exactly matches the on the rpc
+	payload := rpcPayload{
+		Name: l.Title,
+		Data: l.Content,
+	}
+
+	var res string // response from the rpc
+
+	// The service method name must exactly match the one on the rpc
+	//
+	// Must start with a capital letter to be exported (so that it works)
+	err = client.Call("RPCServer.LogInfo", payload, &res)
+	if err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err = app.write(w, http.StatusOK, response{
+		Error:   false,
+		Message: res,
+	}); err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
+}
+
+func (app *application) logGRPC(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
+	var l log
+
+	err := app.readBody(w, r, &l)
+	if err != nil {
+		app.error(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// Get grpc client
+	// need credentials, but since we using docker...
+	client, err := grpc.NewClient("logger:50001", grpc.WithTransportCredentials(insecure.NewCredentials())) // same name in docker compose
+	if err != nil {
+		app.error(w, http.StatusServiceUnavailable, err)
+		return
+	}
+	defer client.Close()
+
+	// This should (along with the client, which can be treated as database connection)
+	// be injected as a dependency
+	//
+	// On the application / handler struct -- like a repository
+	logClient := logs.NewLogServiceClient(client)
+
+	resp, err := logClient.WriteLog(ctx, &logs.LogRequest{
+		Entry: &logs.Log{
+			Name: l.Title,
+			Data: l.Content,
+		},
+	})
+	if err != nil {
+		app.error(w, http.StatusServiceUnavailable, err)
+		return
+	}
+
+	if err = app.write(w, http.StatusOK, response{
+		Error:   false,
+		Message: resp.Response,
+	}); err != nil {
+		app.error(w, http.StatusInternalServerError, err)
+		return
+	}
 }

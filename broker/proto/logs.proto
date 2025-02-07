@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package logs;
+
+option go_package = "github.com/ziliscite/go-micro-proto/logs";
+
+service LogService {
+  rpc WriteLog(LogRequest) returns (LogResponse);
+}
+
+message Log {
+  string name = 1;
+  string data = 2;
+}
+
+message LogRequest {
+  Log entry = 1;
+}
+
+message LogResponse {
+  string response = 1;
+}
+
+// cd proto
+// protoc --go_out=. --

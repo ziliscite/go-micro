@@ -30,8 +30,8 @@ type Repository struct {
 	mc *mongo.Collection
 }
 
-func New(client *mongo.Client) Repository {
-	return Repository{
+func New(client *mongo.Client) *Repository {
+	return &Repository{
 		// Inject the collection dependency
 		//
 		// If a collection is not available, it will be created

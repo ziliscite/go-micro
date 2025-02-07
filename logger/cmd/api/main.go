@@ -1,7 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"github.com/ziliscite/go-micro-logger/internal/repository"
+	genproto "github.com/ziliscite/go-micro-logger/proto/genproto"
+	"google.golang.org/grpc"
+	"net"
+	"net/rpc"
 
 	"context"
 	"log/slog"
@@ -16,11 +21,11 @@ import (
 const (
 	ApiPort  = "80"
 	RPCPort  = "5001"
-	gRPCPort = "8080"
+	GRPCPort = "50001"
 )
 
 type application struct {
-	repo repository.Repository
+	repo *repository.Repository
 }
 
 func main() {
@@ -43,8 +48,62 @@ func main() {
 		repo: repository.New(client),
 	}
 
+	// Register rpc -- must be a pointer
+	if err = rpc.Register(&RPCServer{
+		repo: app.repo,
+	}); err != nil {
+		slog.Error("Failed to register rpc", "error", err.Error())
+		os.Exit(1)
+	}
+
+	go app.rpcListen()
+
+	go app.grpcListen()
+
 	if err = app.serve(); err != nil {
 		slog.Error("Failed to start server", "error", err)
+		os.Exit(1)
+	}
+}
+
+func (app *application) rpcListen() {
+	slog.Info("Starting rpc server", "port", RPCPort)
+
+	listen, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", RPCPort))
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	defer listen.Close()
+
+	for {
+		conn, err := listen.Accept()
+		if err != nil {
+			continue
+		}
+		go rpc.ServeConn(conn)
+	}
+}
+
+func (app *application) grpcListen() {
+	listen, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", GRPCPort))
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	defer listen.Close()
+
+	srv := grpc.NewServer()
+
+	// Register the service
+	genproto.RegisterLogServiceServer(srv, &LogServer{
+		repo: app.repo,
+	})
+
+	slog.Info("Starting grpc server", "port", GRPCPort)
+
+	if err = srv.Serve(listen); err != nil {
+		slog.Error(err.Error())
 		os.Exit(1)
 	}
 }

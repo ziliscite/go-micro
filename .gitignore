@@ -3,12 +3,14 @@ broker/.env
 frontend/.env
 logger/.env
 mailer/.env
+listener/.env
 
 authentication/authentication
 broker/broker
 frontend/frontend
 logger/logger
 mailer/mailer
+listener/listener
 
 .compose/db-data
 .compose/mail-data

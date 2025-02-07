@@ -23,8 +23,9 @@ func (app *application) writeLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entry := data.Entry{
-		Title:   request.Title,
-		Content: request.Content,
+		Title:     request.Title,
+		Content:   request.Content,
+		CreatedAt: time.Now(),
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

@@ -27,5 +27,7 @@ func (app *application) routes() http.Handler {
 	mux.Post("/", app.broker)
 	mux.Post("/handle", app.gateway)
 
+	mux.Post("/log/grpc", app.logGRPC)
+
 	return middleware.Recoverer(mux)
 }
